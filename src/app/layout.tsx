@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Team Unity",
+  title: "SamePage",
   description: "AI-powered team trainings from anonymous daily check-ins",
 };
 

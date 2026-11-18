@@ -1,4 +1,4 @@
-# Team Unity App: Prototype 1 Spec
+# SamePage: Prototype 1 Spec
 
 **Status:** Draft v0.3 (18 Nov 2026). Items marked **[OPEN Qn]** need a decision; the full list is in §10. Decisions made so far are in §0.
 

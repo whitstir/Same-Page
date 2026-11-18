@@ -1,4 +1,4 @@
-# Team Unity App
+# SamePage
 
 A web app that helps teams resolve conflict and work on team goals through short, AI-generated trainings approved by a manager. See [docs/specs.md](docs/specs.md) for the product spec.
 
