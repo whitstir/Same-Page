@@ -203,24 +203,42 @@ function TextQuestion({
 }
 
 function Scale({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
+  const rated = value > 0;
+  const shown = rated ? value : 3;
+  const pct = ((shown - 1) / 4) * 100;
+  const commit = (v: string) => onChange(Number(v));
   return (
-    <div role="radiogroup" aria-label={label} className="grid grid-cols-5 overflow-hidden rounded-md border border-line-strong">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          role="radio"
-          aria-checked={value === n}
-          aria-label={`${label}: ${n} of 5`}
-          onClick={() => onChange(n)}
-          className={
-            "h-11 border-line-strong text-base font-medium transition-colors [&:not(:last-child)]:border-r " +
-            (value === n ? "bg-brand text-white" : "bg-surface text-ink hover:bg-subtle")
-          }
-        >
-          {n}
-        </button>
-      ))}
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-4">
+        <input
+          type="range"
+          min={1}
+          max={5}
+          step={1}
+          value={shown}
+          aria-label={label}
+          aria-valuetext={rated ? `${value} of 5` : "Not rated yet"}
+          onChange={(e) => commit(e.target.value)}
+          onClick={(e) => commit(e.currentTarget.value)}
+          onKeyUp={(e) => commit(e.currentTarget.value)}
+          style={{ "--pct": `${pct}%` } as React.CSSProperties}
+          className={"range flex-1 " + (rated ? "" : "range-unset")}
+        />
+        <span className={"w-16 flex-none text-right text-sm " + (rated ? "font-semibold text-ink" : "text-muted")}>
+          {rated ? `${value} / 5` : "Not rated"}
+        </span>
+      </div>
+      <div aria-hidden="true" className="relative mr-20 h-4 text-xs text-muted">
+        {[1, 2, 3, 4, 5].map((n, i) => (
+          <span
+            key={n}
+            className={"absolute -translate-x-1/2 " + (rated && n === value ? "font-semibold text-brand-ink" : "")}
+            style={{ left: `calc(11px + (100% - 22px) * ${i / 4})` }}
+          >
+            {n}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
