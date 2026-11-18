@@ -5,7 +5,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { contentOptions, generateDeck, suggestSubtopics, topicSuggestions, type ContentId } from "@/lib/data";
-import { btn, Card } from "@/components/ui";
+import { btn, Card, MinutesInput } from "@/components/ui";
+import { useFlip } from "@/lib/useFlip";
+
+type Sub = { id: string; title: string; minutes: number };
+let subSeq = 0;
+const withIds = (list: { title: string; minutes: number }[]): Sub[] =>
+  list.map((s) => ({ ...s, id: `s${++subSeq}` }));
 
 const steps = ["Topic", "Length", "Slide contents", "Subtopics", "Generate"];
 
@@ -19,15 +25,17 @@ export default function NewTraining() {
   const [custom, setCustom] = useState("");
   const [minutes, setMinutes] = useState(10);
   const [contents, setContents] = useState<ContentId[]>(["intro", "idea", "discussion", "scenario", "video", "wrap-up"]);
-  const [subs, setSubs] = useState<{ title: string; minutes: number }[] | null>(null);
+  const [subs, setSubs] = useState<Sub[] | null>(null);
   const [generating, setGenerating] = useState(false);
 
   const topic = picked === -1 ? custom.trim() : topics[picked]?.title ?? "";
-  const subtopics = subs ?? suggestSubtopics(topic || "this topic", minutes);
+  const [fallback] = useState(() => withIds(suggestSubtopics("this topic", 10)));
+  const subtopics = subs ?? fallback;
+  const register = useFlip(subtopics.map((s) => s.id));
   const totalMin = subtopics.reduce((a, s) => a + s.minutes, 0);
 
   const goTo = (n: number) => {
-    if (n === 3 && !subs) setSubs(suggestSubtopics(topic, minutes));
+    if (n === 3 && !subs) setSubs(withIds(suggestSubtopics(topic, minutes)));
     setStep(n);
   };
 
@@ -197,7 +205,7 @@ export default function NewTraining() {
           </div>
           <ol className="flex flex-col gap-2">
             {subtopics.map((s, i) => (
-              <li key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-line p-2 text-sm">
+              <li key={s.id} ref={register(s.id)} className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-white p-2 text-sm">
                 <input
                   aria-label={`Subtopic ${i + 1}`}
                   value={s.title}
@@ -205,15 +213,11 @@ export default function NewTraining() {
                   className="min-h-11 min-w-0 flex-[1_1_220px] rounded-md border border-transparent px-2 hover:border-line focus:border-line"
                 />
                 <label className="flex items-center gap-1 text-muted">
-                  <input
-                    type="number"
-                    min={1}
-                    max={30}
+                  <MinutesInput
                     aria-label={`Minutes for subtopic ${i + 1}`}
                     value={s.minutes}
-                    onChange={(e) =>
-                      setSubs(subtopics.map((x, j) => (j === i ? { ...x, minutes: Math.max(1, Number(e.target.value) || 1) } : x)))
-                    }
+                    max={30}
+                    onChange={(n) => setSubs(subtopics.map((x, j) => (j === i ? { ...x, minutes: n } : x)))}
                     className="min-h-11 w-14 rounded-md border border-line px-2"
                   />
                   min
@@ -256,7 +260,7 @@ export default function NewTraining() {
           </ol>
           <button
             type="button"
-            onClick={() => setSubs([...subtopics, { title: "New subtopic", minutes: 2 }])}
+            onClick={() => setSubs([...subtopics, ...withIds([{ title: "New subtopic", minutes: 2 }])])}
             className="min-h-11 self-start rounded-lg border border-dashed border-line-strong px-3.5 text-sm"
           >
             + Add subtopic
@@ -296,7 +300,7 @@ export default function NewTraining() {
         )}
         {step < 4 ? (
           <button type="button" className={btn.primary} disabled={!topic} onClick={() => goTo(step + 1)}>
-            Next: {steps[step + 1].toLowerCase()} →
+            Continue
           </button>
         ) : (
           <button type="button" className={btn.primary} disabled={generating || !topic} onClick={generate}>

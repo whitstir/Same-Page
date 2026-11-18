@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/lib/store";
 import type { Slide } from "@/lib/data";
 import { downloadPptx } from "@/lib/pptx";
-import { btn, Pill, PrototypeNote } from "@/components/ui";
+import { btn, MinutesInput, Pill, PrototypeNote } from "@/components/ui";
 import { SlideView } from "@/components/SlideView";
 
 export default function EditorPage() {
@@ -193,12 +193,15 @@ function Editor() {
 
             <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
               <Field label="Title" value={slide.title} onChange={(v) => updateSlide(t.id, i, { title: v })} />
-              <Field
-                label="Minutes"
-                type="number"
-                value={String(slide.minutes)}
-                onChange={(v) => updateSlide(t.id, i, { minutes: Math.max(1, Number(v) || 1) })}
-              />
+              <label className="flex flex-col gap-1.5 text-sm font-semibold">
+                Minutes
+                <MinutesInput
+                  key={`${t.id}-${i}`}
+                  value={slide.minutes}
+                  onChange={(n) => updateSlide(t.id, i, { minutes: n })}
+                  className="min-h-11 rounded-lg border border-line px-2.5 font-normal"
+                />
+              </label>
               <label className="flex flex-col gap-1.5 text-sm font-semibold sm:col-span-2">
                 Bullet points (one per line)
                 <textarea

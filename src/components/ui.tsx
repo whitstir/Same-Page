@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const base =
   "inline-flex min-h-11 items-center justify-center rounded-lg px-4 text-sm font-semibold no-underline transition-colors disabled:cursor-not-allowed disabled:opacity-50";
@@ -74,6 +74,52 @@ export function Modal({
         {children}
       </div>
     </dialog>
+  );
+}
+
+// A minutes field that can be cleared while typing (so typing "2" over "1"
+// gives 2, not 12). It only clamps to the allowed range when you leave it.
+export function MinutesInput({
+  value,
+  onChange,
+  min = 1,
+  max = 60,
+  className = "",
+  ...rest
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  min?: number;
+  max?: number;
+  className?: string;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "min" | "max">) {
+  const [text, setText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      {...rest}
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      value={focused ? text : String(value)}
+      onFocus={(e) => {
+        setText(String(value));
+        setFocused(true);
+        e.currentTarget.select();
+      }}
+      onChange={(e) => {
+        const t = e.target.value.replace(/\D/g, "").slice(0, 3);
+        setText(t);
+        const n = Number(t);
+        if (t !== "" && n >= min && n <= max) onChange(n);
+      }}
+      onBlur={() => {
+        setFocused(false);
+        const n = Number(text);
+        onChange(text === "" || Number.isNaN(n) ? value : Math.min(max, Math.max(min, n)));
+      }}
+      className={className}
+    />
   );
 }
 
