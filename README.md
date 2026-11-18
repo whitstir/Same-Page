@@ -2,6 +2,10 @@
 
 A web app that helps teams resolve conflict and work on team goals through short, AI-generated trainings approved by a manager. See [docs/specs.md](docs/specs.md) for the product spec.
 
+## Clickable prototype
+
+The live site is a clickable prototype of Prototype 1's screens: the member check-in (with Review summary), past trainings, and the manager dashboard, training wizard, slide editor, team growth and settings. It runs entirely in the browser with sample data saved to localStorage; the AI steps are templated stand-ins until Supabase and the Claude API are wired up.
+
 ## Stack
 
 - **Next.js** (static export) hosted on **GitHub Pages**
