@@ -3,6 +3,7 @@ import { IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "@/lib/store";
 import { TopNav } from "@/components/Nav";
+import { AiProvider } from "@/lib/ai";
 
 const plex = IBM_Plex_Sans({ variable: "--font-plex", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
@@ -18,8 +19,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${plex.variable} antialiased`}>
         <StoreProvider>
-          <TopNav />
-          <div className="pb-24 md:pb-12">{children}</div>
+          <AiProvider>
+            <TopNav />
+            <div className="pb-24 md:pb-12">{children}</div>
+          </AiProvider>
         </StoreProvider>
       </body>
     </html>

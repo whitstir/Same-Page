@@ -22,7 +22,12 @@ export async function downloadPptx(t: Training) {
         x: 0.8, y: 5.0, w: 11.5, h: 0.9, fontSize: 20, color: "145158", fill: { color: "F1F8F8" }, fontFace: "Calibri",
       });
     if (s.videoTitle)
-      slide.addText(`Video: ${s.videoTitle}`, { x: 0.8, y: 6.1, w: 11.5, h: 0.5, fontSize: 16, color: "4F5E6B", fontFace: "Calibri" });
+      slide.addText(
+        s.videoUrl
+          ? [{ text: "Video: " }, { text: s.videoTitle, options: { hyperlink: { url: s.videoUrl } } }]
+          : `Video: ${s.videoTitle}`,
+        { x: 0.8, y: 6.1, w: 11.5, h: 0.5, fontSize: 16, color: "4F5E6B", fontFace: "Calibri" },
+      );
     slide.addNotes(`${s.notes} (about ${s.minutes} min)`);
   }
 

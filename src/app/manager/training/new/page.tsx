@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
-import { contentOptions, generateDeck, suggestSubtopics, topicSuggestions, type ContentId } from "@/lib/data";
+import { contentOptions, suggestSubtopics, teamSummary, topicSuggestions, type ContentId } from "@/lib/data";
+import { aiErrorMessage, toSlide, useAI } from "@/lib/ai";
 import { btn, inputCls, MinutesInput, PageBody, PageHeader, Panel } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { useFlip } from "@/lib/useFlip";
@@ -24,25 +25,74 @@ const steps = [
 
 export default function NewTraining() {
   const router = useRouter();
-  const { update } = useStore();
+  const { update, goals } = useStore();
+  const ai = useAI();
   const [step, setStep] = useState(0);
   const [picked, setPicked] = useState(0); // index into topics, or -1 for custom
-  const [topics, setTopics] = useState(topicSuggestions.map((t) => ({ ...t })));
+  const [topics, setTopics] = useState<{ title: string; why: string }[]>([]);
+  const [topicsState, setTopicsState] = useState<"loading" | "ready" | "failed">("loading");
+  const [topicsError, setTopicsError] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
   const [custom, setCustom] = useState("");
   const [minutes, setMinutes] = useState(10);
   const [contents, setContents] = useState<ContentId[]>(["intro", "idea", "discussion", "scenario", "video", "wrap-up"]);
   const [subs, setSubs] = useState<Sub[] | null>(null);
+  const [subsFor, setSubsFor] = useState(""); // topic + length the subtopics were planned for
+  const [subsLoading, setSubsLoading] = useState(false);
+  const [subsError, setSubsError] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
 
   const topic = picked === -1 ? custom.trim() : topics[picked]?.title ?? "";
-  const [fallback] = useState(() => withIds(suggestSubtopics("this topic", 10)));
-  const subtopics = subs ?? fallback;
+  const subtopics = subs ?? [];
   const register = useFlip(subtopics.map((s) => s.id));
   const totalMin = subtopics.reduce((a, s) => a + s.minutes, 0);
 
+  const loadTopics = async () => {
+    setTopicsState("loading");
+    setTopicsError("");
+    try {
+      const { topics: list } = await ai.run("topics", {
+        summary: teamSummary,
+        goals: goals
+          .filter((g) => !g.archived)
+          .map((g) => ({ title: g.title, kind: g.kind, recentRatings: g.history.slice(-4) })),
+      });
+      if (!list.length) throw new Error("The AI didn't suggest any topics.");
+      setTopics(list);
+      setTopicsState("ready");
+    } catch (e) {
+      setTopics(topicSuggestions.map((t) => ({ ...t })));
+      setTopicsError(aiErrorMessage(e));
+      setTopicsState("failed");
+    }
+  };
+
+  useEffect(() => {
+    loadTopics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const planSubtopics = async () => {
+    const key = `${topic}|${minutes}`;
+    if (subs && subsFor === key) return;
+    setSubsFor(key);
+    setSubs(null);
+    setSubsLoading(true);
+    setSubsError("");
+    try {
+      const { subtopics: list } = await ai.run("subtopics", { topic, minutes, contents, summary: teamSummary });
+      setSubs(withIds(list.map((s) => ({ title: s.title, minutes: Math.max(1, Math.round(s.minutes)) }))));
+    } catch (e) {
+      setSubs(withIds(suggestSubtopics(topic, minutes)));
+      setSubsError(aiErrorMessage(e));
+    } finally {
+      setSubsLoading(false);
+    }
+  };
+
   const goTo = (n: number) => {
-    if (n === 3 && !subs) setSubs(withIds(suggestSubtopics(topic, minutes)));
+    if (n === 3) planSubtopics();
     setStep(n);
   };
 
@@ -52,17 +102,31 @@ export default function NewTraining() {
     setSubs(n);
   };
 
-  const generate = () => {
+  const generate = async () => {
     setGenerating(true);
-    const id = `t${Date.now()}`;
-    const slides = generateDeck(topic, minutes, contents, subtopics);
-    setTimeout(() => {
+    setGenError("");
+    try {
+      const { slides } = await ai.run("deck", {
+        topic,
+        minutes,
+        contents,
+        subtopics: subtopics.map(({ title, minutes }) => ({ title, minutes })),
+        summary: teamSummary,
+      });
+      if (!slides.length) throw new Error("The AI returned an empty deck. Try again.");
+      const id = `t${Date.now()}`;
       update((s) => ({
         ...s,
-        trainings: [{ id, topic, minutes, status: "draft", sharedWithTeam: false, slides }, ...s.trainings],
+        trainings: [
+          { id, topic, minutes, status: "draft", sharedWithTeam: false, slides: slides.map(toSlide) },
+          ...s.trainings,
+        ],
       }));
       router.push(`/manager/training/edit/?id=${id}`);
-    }, 900);
+    } catch (e) {
+      setGenError(aiErrorMessage(e));
+      setGenerating(false);
+    }
   };
 
   return (
@@ -125,6 +189,19 @@ export default function NewTraining() {
             bodyClassName=""
           >
             <div className="p-5">
+              {step === 0 && topicsState === "loading" && (
+                <p role="status" className="mb-3 text-sm text-muted">
+                  Reading this week&apos;s summary and suggesting topics…
+                </p>
+              )}
+              {step === 0 && topicsState === "failed" && (
+                <p role="alert" className="mb-3 flex flex-wrap items-center gap-2 text-sm text-warn">
+                  {topicsError} Showing sample topics instead.
+                  <button type="button" className={btn.ghost} onClick={loadTopics}>
+                    Try again
+                  </button>
+                </p>
+              )}
               {step === 0 && (
                 <fieldset className="flex flex-col divide-y divide-line rounded-md border border-line">
                   <legend className="sr-only">Topics</legend>
@@ -243,6 +320,16 @@ export default function NewTraining() {
                       {totalMin} of {minutes} min planned
                     </span>
                   </div>
+                  {subsLoading && (
+                    <p role="status" className="text-sm text-muted">
+                      Planning subtopics for {minutes} minutes…
+                    </p>
+                  )}
+                  {subsError && (
+                    <p role="alert" className="text-sm text-warn">
+                      {subsError} Showing a basic outline instead.
+                    </p>
+                  )}
                   <ol className="flex flex-col rounded-md border border-line">
                     {subtopics.map((s, i) => (
                       <li
@@ -319,6 +406,17 @@ export default function NewTraining() {
                   ))}
                 </dl>
               )}
+              {step === 4 && (
+                <p className="mt-3 text-sm text-muted">
+                  AI writes the deck and speaker notes. If you chose videos, it searches YouTube and checks each link
+                  exists before it goes on a slide. This can take up to a minute.
+                </p>
+              )}
+              {step === 4 && genError && (
+                <p role="alert" className="mt-3 rounded-md border border-[#f3c1bd] bg-[#fdf0ef] p-3 text-sm text-[#b42318]">
+                  {genError}
+                </p>
+              )}
             </div>
 
             <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-subtle px-5 py-3">
@@ -332,11 +430,16 @@ export default function NewTraining() {
                 </button>
               )}
               {step < 4 ? (
-                <button type="button" className={btn.primary} disabled={!topic} onClick={() => goTo(step + 1)}>
+                <button
+                  type="button"
+                  className={btn.primary}
+                  disabled={!topic || (step === 0 && topicsState === "loading" && picked !== -1) || (step === 3 && subsLoading)}
+                  onClick={() => goTo(step + 1)}
+                >
                   Continue
                 </button>
               ) : (
-                <button type="button" className={btn.primary} disabled={generating || !topic} onClick={generate}>
+                <button type="button" className={btn.primary} disabled={generating || !topic || !subtopics.length} onClick={generate}>
                   <Icon name="sparkle" size={16} />
                   {generating ? "Generating slides…" : "Generate slides"}
                 </button>

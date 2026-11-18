@@ -2,8 +2,7 @@
 
 // Prototype state. There is no backend yet: everything lives in the browser
 // (React state, mirrored to localStorage so a page refresh keeps your place).
-// In the real app this data comes from Supabase and the AI calls run in
-// Supabase Edge Functions.
+// There is no database; the AI calls go through src/lib/ai.tsx.
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import {
@@ -16,6 +15,7 @@ import {
   type Slide,
   type Training,
 } from "./data";
+import type { CheckInAnalysis } from "./ai";
 
 export type CheckIn = {
   wentWell: string;
@@ -46,6 +46,9 @@ type State = {
   weekly: boolean; // first check-in of the week shows the weekly questions
   submittedToday: boolean;
   checkInsToday: number; // team count shown to the manager
+  // AI summaries of this browser's own check-ins. The raw answers are never
+  // kept after submitting.
+  myCheckIns: { date: string; analysis: CheckInAnalysis }[];
 };
 
 const initialState: State = {
@@ -57,6 +60,7 @@ const initialState: State = {
   weekly: true,
   submittedToday: false,
   checkInsToday: 5,
+  myCheckIns: [],
 };
 
 const KEY = "samepage-prototype-v1";

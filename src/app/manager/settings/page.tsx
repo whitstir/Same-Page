@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
+import { AiCancelled, useAI } from "@/lib/ai";
 import type { ContactChannel, Goal } from "@/lib/data";
 import { Avatar, btn, inputCls, PageBody, PageHeader, Panel, Tag } from "@/components/ui";
 import { Icon } from "@/components/Icon";
@@ -151,6 +152,7 @@ export default function SettingsPage() {
             </Panel>
           </div>
 
+          <div className="flex min-w-0 flex-col gap-5">
           <Panel title="Contact a manager" subtitle="Where the button after each check-in sends members" bodyClassName="flex flex-col gap-4 p-5">
             <fieldset>
               <legend className="mb-2 text-[13px] font-medium">Channel</legend>
@@ -189,8 +191,52 @@ export default function SettingsPage() {
               Members are told that using this button shares who they are with you.
             </p>
           </Panel>
+          <AiPasscodePanel />
+          </div>
         </div>
       </PageBody>
     </>
+  );
+}
+
+function AiPasscodePanel() {
+  const ai = useAI();
+  const [saved, setSaved] = useState(false);
+  useEffect(() => setSaved(ai.hasPasscode()), [ai]);
+
+  return (
+    <Panel title="AI passcode" subtitle="Needed for the AI steps; saved only in this browser" bodyClassName="flex flex-col gap-3 p-5">
+      <p className="text-sm" role="status">
+        {saved ? "A passcode is saved in this browser." : "No passcode saved yet. You'll be asked the first time AI runs."}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={btn.secondary}
+          onClick={() =>
+            ai
+              .askPasscode()
+              .then(() => setSaved(true))
+              .catch((e) => {
+                if (!(e instanceof AiCancelled)) throw e;
+              })
+          }
+        >
+          {saved ? "Change passcode" : "Enter passcode"}
+        </button>
+        {saved && (
+          <button
+            type="button"
+            className={btn.ghost}
+            onClick={() => {
+              ai.forgetPasscode();
+              setSaved(false);
+            }}
+          >
+            Forget passcode
+          </button>
+        )}
+      </div>
+    </Panel>
   );
 }
