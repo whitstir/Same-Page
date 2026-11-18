@@ -1,34 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { formatDate, team, teamSummary, type Training } from "@/lib/data";
 import { btn, ButtonLink, Card, Pill } from "@/components/ui";
+import { downloadPptx } from "@/lib/pptx";
 
 const statusLabel = (t: Training) =>
   t.status === "draft" ? "Draft" : t.status === "published" ? "Approved" : t.sharedWithTeam ? "Shared with team" : "Discussion done";
 
 export default function Dashboard() {
-  const { members, goals, trainings, checkInsToday, updateTraining, update } = useStore();
-  const router = useRouter();
+  const { members, goals, trainings, checkInsToday, updateTraining } = useStore();
   const total = members.length;
   const unlocked = checkInsToday >= 3;
   const next = trainings
     .filter((t) => t.status === "published" && t.discussionDate)
     .sort((a, b) => (a.discussionDate ?? "").localeCompare(b.discussionDate ?? ""))[0];
 
-  const duplicate = (t: Training) => {
-    const id = `t${Date.now()}`;
-    update((s) => ({
-      ...s,
-      trainings: [
-        { ...t, id, topic: `${t.topic} (copy)`, status: "draft", sharedWithTeam: false, discussionDate: undefined },
-        ...s.trainings,
-      ],
-    }));
-    router.push(`/manager/training/edit/?id=${id}`);
-  };
 
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
@@ -177,10 +165,20 @@ export default function Dashboard() {
                         </button>
                       )}
                       <Link href={`/manager/training/edit/?id=${t.id}`} className={btn.ghost}>
-                        Open
+                        Edit
                       </Link>
-                      <button type="button" className={btn.ghost} onClick={() => duplicate(t)}>
-                        Duplicate
+                      <button
+                        type="button"
+                        onClick={() => downloadPptx(t)}
+                        aria-label={`Download ${t.topic} as .pptx`}
+                        title="Download .pptx"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-subtle hover:text-ink"
+                      >
+                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 3v12" />
+                          <path d="M7 10l5 5 5-5" />
+                          <path d="M5 21h14" />
+                        </svg>
                       </button>
                     </div>
                   </td>
