@@ -3,11 +3,16 @@
 import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { formatDate, team, teamSummary, type Training } from "@/lib/data";
-import { btn, ButtonLink, Card, Pill } from "@/components/ui";
 import { downloadPptx } from "@/lib/pptx";
+import { btn, ButtonLink, PageBody, PageHeader, Panel, Stat, Tag } from "@/components/ui";
+import { Icon } from "@/components/Icon";
 
-const statusLabel = (t: Training) =>
-  t.status === "draft" ? "Draft" : t.status === "published" ? "Approved" : t.sharedWithTeam ? "Shared with team" : "Discussion done";
+function status(t: Training) {
+  if (t.status === "draft") return <Tag>Draft</Tag>;
+  if (t.status === "published") return <Tag tone="info">Scheduled</Tag>;
+  if (t.sharedWithTeam) return <Tag tone="good">Shared with team</Tag>;
+  return <Tag tone="warn">Ready to share</Tag>;
+}
 
 export default function Dashboard() {
   const { members, goals, trainings, checkInsToday, updateTraining } = useStore();
@@ -16,127 +21,150 @@ export default function Dashboard() {
   const next = trainings
     .filter((t) => t.status === "published" && t.discussionDate)
     .sort((a, b) => (a.discussionDate ?? "").localeCompare(b.discussionDate ?? ""))[0];
-
+  const shared = trainings.filter((t) => t.sharedWithTeam).length;
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">{team.name}</h1>
-          <p className="mt-1 text-sm text-muted">Week of Nov 16 · {total} members</p>
-        </div>
-        <ButtonLink href="/manager/training/new/">+ Create training</ButtonLink>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <div className="text-sm text-muted">Today&apos;s check-in</div>
-          <div className="mt-1.5 text-3xl font-bold">
-            {checkInsToday} of {total}
+    <>
+      <PageHeader
+        title={team.name}
+        meta={`Week of Nov 16 · ${total} members`}
+        actions={
+          <ButtonLink href="/manager/training/new/">
+            <Icon name="plus" size={16} />
+            New training
+          </ButtonLink>
+        }
+      />
+      <PageBody>
+        <Panel bodyClassName="grid grid-cols-2 gap-px overflow-hidden rounded-md bg-line lg:grid-cols-4 [&>*]:bg-surface">
+          <div>
+            <Stat
+              label="Checked in today"
+              value={
+                <>
+                  {checkInsToday}
+                  <span className="text-lg font-normal text-muted"> / {total}</span>
+                </>
+              }
+              detail="Individual responses are never shown"
+            />
+            <div className="mx-5 mb-4 h-1.5 bg-[#e3e8ec]">
+              <div className="h-1.5 bg-brand" style={{ width: `${(checkInsToday / total) * 100}%` }} />
+            </div>
           </div>
-          <div className="mt-1 text-sm text-muted">members completed. We never show who.</div>
-        </Card>
-        <Card>
-          <div className="text-sm text-muted">Weekly ratings</div>
-          <div className="mt-1.5 text-3xl font-bold">7 of {total}</div>
-          <div className="mt-1 text-sm text-muted">members rated goals and values this week</div>
-        </Card>
-        <Card>
-          <div className="text-sm text-muted">Next discussion</div>
-          <div className="mt-1.5 text-lg font-bold">{next ? formatDate(next.discussionDate) : "None scheduled"}</div>
-          <div className="mt-1 text-sm text-muted">{next ? `${next.topic} · ${next.minutes} min` : "Create a training to schedule one"}</div>
-        </Card>
-      </div>
+          <Stat
+            label="Weekly ratings"
+            value={
+              <>
+                7<span className="text-lg font-normal text-muted"> / {total}</span>
+              </>
+            }
+            detail="Goals and values rated this week"
+          />
+          <Stat
+            label="Next discussion"
+            value={<span className="text-xl">{next ? formatDate(next.discussionDate) : "None scheduled"}</span>}
+            detail={next ? `${next.topic} · ${next.minutes} min` : "Create a training to schedule one"}
+          />
+          <Stat label="Trainings shared" value={shared} detail="Visible to members after the discussion" />
+        </Panel>
 
-      <div className="flex flex-wrap items-start gap-6">
-        <Card className="flex min-w-0 flex-[2_1_420px] flex-col gap-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-bold">Anonymous team summary</h2>
-            <span className="text-sm text-muted">Updated in batches · last at 3:00 PM</span>
-          </div>
-          <p className="rounded-lg border border-dashed border-line-strong bg-subtle px-3 py-2.5 text-sm text-muted">
-            Written by AI from anonymous response summaries. Shown only after 3 or more members respond. No names, no quotes.
-          </p>
-          {unlocked ? (
-            <>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <SummaryList title="Wins" items={teamSummary.wins} />
-                <SummaryList title="Friction points" items={teamSummary.friction} />
-                <SummaryList title="Issues raised" items={teamSummary.issues} />
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3.5">
-                <div className="text-sm">
-                  <strong>What the team needs most:</strong> {teamSummary.topNeed}
+        <div className="grid gap-5 lg:grid-cols-3">
+          <Panel
+            className="lg:col-span-2"
+            title="Team summary"
+            subtitle={unlocked ? `Anonymous · ${checkInsToday} responses today · updated 3:00 PM` : "Anonymous"}
+            actions={
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                <Icon name="lock" size={14} />
+                Shown at 3+ responses
+              </span>
+            }
+            bodyClassName=""
+          >
+            {unlocked ? (
+              <>
+                <div className="grid divide-y divide-line md:grid-cols-3 md:divide-x md:divide-y-0">
+                  <SummaryList title="Wins" color="bg-good" items={teamSummary.wins} />
+                  <SummaryList title="Friction" color="bg-warn" items={teamSummary.friction} />
+                  <SummaryList title="Issues raised" color="bg-info" items={teamSummary.issues} />
                 </div>
-                <Link href="/manager/training/new/" className="text-sm font-semibold">
-                  Turn this into a training →
-                </Link>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm">Waiting for at least 3 check-ins before showing a summary.</p>
-          )}
-        </Card>
-
-        <Card className="flex min-w-0 flex-[1_1_300px] flex-col gap-3.5">
-          <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-lg font-bold">Goals and core values</h2>
-            <Link href="/manager/settings/" className="text-sm">
-              Edit
-            </Link>
-          </div>
-          <div className="text-sm text-muted">Average weekly rating, 1 to 5</div>
-          {goals
-            .filter((g) => !g.archived)
-            .map((g) => {
-              const score = g.history[g.history.length - 1] ?? 0;
-              return (
-                <div key={g.id} className="flex flex-col gap-1.5">
-                  <div className="flex justify-between gap-2 text-sm">
-                    <span>
-                      {g.title} <span className="text-xs text-muted">· {g.kind}</span>
-                    </span>
-                    <strong>{score ? score.toFixed(1) : "—"}</strong>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-brand-wash px-5 py-3">
+                  <div className="text-sm">
+                    <span className="font-medium text-brand-ink">Top need this week:</span> {teamSummary.topNeed}
                   </div>
-                  <div className="h-2 rounded bg-[#eaeef2]">
-                    <div className="h-2 rounded bg-brand" style={{ width: `${(score / 5) * 100}%` }} />
-                  </div>
+                  <ButtonLink href="/manager/training/new/" variant="outline">
+                    Build a training
+                  </ButtonLink>
                 </div>
-              );
-            })}
-          <Link href="/manager/growth/" className="text-sm font-semibold">
-            See team growth →
-          </Link>
-        </Card>
-      </div>
+              </>
+            ) : (
+              <p className="px-5 py-8 text-sm text-muted">The summary appears once at least 3 members have checked in.</p>
+            )}
+          </Panel>
 
-      <Card className="flex flex-col gap-3.5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-bold">Trainings</h2>
-          <span className="text-sm text-muted">Members see a training only after the discussion, once you share it</span>
+          <Panel
+            title="Goals and values"
+            subtitle="Average weekly rating, out of 5"
+            actions={
+              <Link href="/manager/growth/" className={btn.ghost}>
+                Growth
+                <Icon name="chevronRight" size={16} />
+              </Link>
+            }
+            bodyClassName="divide-y divide-line"
+          >
+            {goals
+              .filter((g) => !g.archived)
+              .map((g) => {
+                const score = g.history[g.history.length - 1] ?? 0;
+                const prev = g.history[g.history.length - 2] ?? score;
+                const d = score - prev;
+                return (
+                  <div key={g.id} className="flex flex-col gap-2 px-5 py-3">
+                    <div className="flex items-baseline justify-between gap-3 text-sm">
+                      <span className="min-w-0">
+                        <span className="font-medium">{g.title}</span>
+                        <span className="ml-1.5 text-xs text-muted">{g.kind === "goal" ? "Goal" : "Value"}</span>
+                      </span>
+                      <span className="flex items-baseline gap-2">
+                        <span className={"text-xs " + (d > 0.05 ? "text-good" : d < -0.05 ? "text-warn" : "text-muted")}>
+                          {d > 0.05 ? `+${d.toFixed(1)}` : d < -0.05 ? d.toFixed(1) : "0.0"}
+                        </span>
+                        <strong className="font-semibold">{score ? score.toFixed(1) : "—"}</strong>
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-[#e3e8ec]">
+                      <div className="h-1.5 bg-brand" style={{ width: `${(score / 5) * 100}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+          </Panel>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+
+        <Panel title="Trainings" subtitle="Members see a training after the discussion, once you share it" bodyClassName="relative overflow-x-auto">
+          <table className="w-full min-w-[680px] border-collapse text-sm">
             <thead>
-              <tr className="text-left text-muted">
-                <th className="border-b border-line p-2 font-medium">Training</th>
-                <th className="border-b border-line p-2 font-medium">Status</th>
-                <th className="border-b border-line p-2 font-medium">Discussion date</th>
-                <th className="border-b border-line p-2 font-medium">
+              <tr className="bg-subtle text-left text-xs font-medium uppercase tracking-wide text-muted">
+                <th className="border-b border-line px-5 py-2.5 font-medium">Training</th>
+                <th className="border-b border-line px-3 py-2.5 font-medium">Status</th>
+                <th className="border-b border-line px-3 py-2.5 font-medium">Discussion</th>
+                <th className="border-b border-line px-3 py-2.5 font-medium">Length</th>
+                <th className="border-b border-line px-5 py-2.5 text-right font-medium">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {trainings.map((t) => (
-                <tr key={t.id}>
-                  <td className="border-b border-[#eaeef2] p-2">{t.topic}</td>
-                  <td className="border-b border-[#eaeef2] p-2">
-                    <Pill>{statusLabel(t)}</Pill>
-                  </td>
-                  <td className="border-b border-[#eaeef2] p-2">{formatDate(t.discussionDate)}</td>
-                  <td className="border-b border-[#eaeef2] p-2">
-                    <div className="flex flex-wrap items-center justify-end gap-1">
+                <tr key={t.id} className="hover:bg-subtle">
+                  <td className="border-b border-line px-5 py-3 font-medium">{t.topic}</td>
+                  <td className="border-b border-line px-3 py-3">{status(t)}</td>
+                  <td className="border-b border-line px-3 py-3 text-muted">{formatDate(t.discussionDate)}</td>
+                  <td className="border-b border-line px-3 py-3 text-muted">{t.minutes} min</td>
+                  <td className="border-b border-line px-5 py-2">
+                    <div className="flex items-center justify-end gap-1">
                       {t.status === "published" && (
                         <button
                           type="button"
@@ -152,7 +180,7 @@ export default function Dashboard() {
                           className={btn.primary}
                           onClick={() => updateTraining(t.id, (x) => ({ ...x, sharedWithTeam: true }))}
                         >
-                          Share slides with team
+                          Share with team
                         </button>
                       )}
                       {t.status === "completed" && t.sharedWithTeam && (
@@ -172,13 +200,9 @@ export default function Dashboard() {
                         onClick={() => downloadPptx(t)}
                         aria-label={`Download ${t.topic} as .pptx`}
                         title="Download .pptx"
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-subtle hover:text-ink"
+                        className={btn.icon}
                       >
-                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 3v12" />
-                          <path d="M7 10l5 5 5-5" />
-                          <path d="M5 21h14" />
-                        </svg>
+                        <Icon name="download" />
                       </button>
                     </div>
                   </td>
@@ -186,17 +210,20 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
-        </div>
-      </Card>
-    </main>
+        </Panel>
+      </PageBody>
+    </>
   );
 }
 
-function SummaryList({ title, items }: { title: string; items: string[] }) {
+function SummaryList({ title, items, color }: { title: string; items: string[]; color: string }) {
   return (
-    <div>
-      <h3 className="mb-2 text-sm font-bold">{title}</h3>
-      <ul className="list-disc pl-5 text-sm leading-relaxed">
+    <div className="px-5 py-4">
+      <h3 className="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+        <span aria-hidden="true" className={`h-2 w-2 ${color}`} />
+        {title}
+      </h3>
+      <ul className="flex flex-col gap-2 text-sm leading-relaxed">
         {items.map((x) => (
           <li key={x}>{x}</li>
         ))}

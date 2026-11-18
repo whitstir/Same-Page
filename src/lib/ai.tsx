@@ -5,7 +5,7 @@
 // AI step runs, a dialog asks for it and the browser remembers it.
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import { btn, Modal } from "@/components/ui";
+import { btn, inputCls, Modal } from "@/components/ui";
 import type { Slide } from "./data";
 
 export const AI_URL =
@@ -210,7 +210,7 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
               onChange={(e) => setValue(e.target.value)}
               aria-invalid={wrong}
               aria-describedby={wrong ? "passcode-error" : undefined}
-              className="min-h-11 rounded-lg border border-line px-3 font-normal"
+              className={inputCls + " font-normal"}
             />
           </label>
           {wrong && (

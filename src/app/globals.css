@@ -1,16 +1,49 @@
 @import "tailwindcss";
 
+/*
+  SamePage design tokens.
+  Calm slate-teal palette. Every text pairing below meets WCAG AA:
+  ink on surface 16.0:1, muted on surface 6.7:1, muted on canvas 5.9:1,
+  white on brand 6.2:1, brand-ink on brand-soft 7.6:1,
+  nav-text on nav 13.7:1, nav-muted on nav 8.1:1.
+*/
 @theme inline {
-  --color-ink: #1f2328;
-  --color-muted: #57606a;
-  --color-line: #d0d7de;
-  --color-line-strong: #afb8c1;
-  --color-subtle: #f6f8fa;
-  --color-brand: #2f5bea;
-  --color-brand-ink: #1e3fb0;
-  --color-brand-soft: #dde5fb;
-  --color-brand-wash: #f3f6fe;
-  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --color-canvas: #eef1f4; /* app background, behind panels */
+  --color-surface: #ffffff; /* panels, cards, inputs */
+  --color-ink: #15232d;
+  --color-muted: #4f5e6b;
+  --color-line: #d8dee4;
+  --color-line-strong: #7f8c99; /* input and control borders: 3.4:1 on white */
+  --color-subtle: #f6f8fa; /* table headers, hover rows */
+
+  --color-brand: #1d6b73; /* deep teal */
+  --color-brand-ink: #145158;
+  --color-brand-soft: #e1eff0;
+  --color-brand-wash: #f1f8f8;
+
+  --color-nav: #10262f;
+  --color-nav-raised: #1a3743;
+  --color-nav-text: #eaf1f3;
+  --color-nav-muted: #a9bec6;
+  --color-nav-accent: #6cc3bb;
+
+  --color-sage: #6f9a8c; /* secondary chart series */
+  --color-good: #2d6a46;
+  --color-good-soft: #e5f1ea;
+  --color-warn: #8a5300;
+  --color-warn-soft: #fbf0dc;
+  --color-info-soft: #e8eef6;
+  --color-info: #2b4d78;
+
+  --font-sans: var(--font-plex), system-ui, sans-serif;
+
+  /* Tight, squared corners everywhere. */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+  --radius-2xl: 6px;
 }
 
 html {
@@ -18,9 +51,10 @@ html {
 }
 
 body {
-  background: #ffffff;
+  background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1; /* aligned numbers in tables and KPIs */
 }
 
 @layer base {
@@ -30,9 +64,78 @@ body {
   a:hover {
     color: var(--color-brand-ink);
   }
+  input,
+  textarea,
+  select {
+    background: var(--color-surface);
+  }
 }
 
 :focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+
+/* Rating slider: filled track up to the thumb, square-ish thumb. */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 44px;
+  background: transparent;
+  cursor: pointer;
+  --track: linear-gradient(to right, var(--color-brand) var(--pct), #d3dae0 var(--pct));
+}
+.range.range-unset {
+  --track: #d3dae0;
+}
+.range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--track);
+}
+.range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--track);
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 2px solid var(--color-brand);
+  box-shadow: 0 1px 3px rgba(16, 38, 47, 0.25);
+}
+.range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 2px solid var(--color-brand);
+  box-shadow: 0 1px 3px rgba(16, 38, 47, 0.25);
+}
+.range.range-unset::-webkit-slider-thumb {
+  border-color: var(--color-line-strong);
+}
+.range.range-unset::-moz-range-thumb {
+  border-color: var(--color-line-strong);
+}
+.range:focus-visible {
+  outline: none;
+}
+.range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+.range:focus-visible::-moz-range-thumb {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { emptyCheckIn, useStore, type CheckIn } from "@/lib/store";
 import { team } from "@/lib/data";
 import { aiErrorMessage, AiCancelled, useAI, type CheckInAnalysis } from "@/lib/ai";
-import { btn, ButtonLink, Modal } from "@/components/ui";
+import { btn, ButtonLink, inputCls, Modal, Panel } from "@/components/ui";
+import { Icon } from "@/components/Icon";
 
 const otherTeamGoals = [{ id: "ls1", title: "Hit the Feb 1 date", kind: "goal" as const }];
 
@@ -21,6 +22,10 @@ export default function CheckInPage() {
   // The analysis and the exact answers it was made from, so an unchanged
   // check-in isn't sent to the AI twice.
   const [analysis, setAnalysis] = useState<{ key: string; result: CheckInAnalysis } | null>(null);
+  const [today, setToday] = useState("");
+  useEffect(() => {
+    setToday(new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }));
+  }, []);
 
   const set = (patch: Partial<CheckIn>) => update((s) => ({ ...s, checkIn: { ...s.checkIn, ...patch } }));
   const rate = (id: string, n: number) => set({ ratings: { ...checkIn.ratings, [id]: n } });
@@ -64,9 +69,9 @@ export default function CheckInPage() {
   const submit = async () => {
     setError("");
     setBusy("submit");
-    // The answers go to the AI once; only its summary is kept. If the AI
-    // can't be reached, the answers stay here so nothing is lost or saved
-    // anywhere else.
+    // The answers go to the AI once; only its summary and the numeric
+    // ratings are kept. If the AI can't be reached, the answers stay here so
+    // nothing is lost or saved anywhere else.
     const result = await analyze();
     setBusy(null);
     if (!result) {
@@ -78,6 +83,7 @@ export default function CheckInPage() {
       checkIn: emptyCheckIn,
       myCheckIns: [{ date: new Date().toISOString().slice(0, 10), analysis: result }, ...s.myCheckIns].slice(0, 30),
       submittedToday: true,
+      weekly: false,
       checkInsToday: Math.min(s.members.length, s.checkInsToday + 1),
     }));
     setAnalysis(null);
@@ -87,193 +93,211 @@ export default function CheckInPage() {
 
   if (submittedToday) {
     return (
-      <main className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
-        <h1 className="text-2xl font-bold">You already checked in today</h1>
-        <p className="text-muted">Come back tomorrow for the next one.</p>
-        <ButtonLink href="/trainings/" variant="secondary">See past trainings</ButtonLink>
-        <button
-          type="button"
-          className="text-sm text-muted underline"
-          onClick={() => update((s) => ({ ...s, submittedToday: false }))}
-        >
-          Prototype: start a new day
-        </button>
+      <main className="mx-auto flex min-h-[calc(100vh-140px)] max-w-md flex-col items-center justify-center gap-3 px-4 text-center">
+        <Icon name="checkCircle" size={40} className="text-brand" />
+        <h1 className="text-xl font-semibold">You&apos;ve checked in today</h1>
+        <p className="text-sm text-muted">Your next check-in opens tomorrow.</p>
+        <ButtonLink href="/trainings/" variant="secondary" className="mt-2">
+          View past trainings
+        </ButtonLink>
       </main>
     );
   }
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const activeGoals = goals.filter((g) => !g.archived);
 
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-5 px-4 py-6">
-      <div className="flex flex-col gap-1">
-        {weekly && step === 2 && (
-          <span className="self-start rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-semibold text-brand-ink">
-            First check-in this week
-          </span>
-        )}
-        <h1 className="text-2xl font-bold">{step === 1 ? "Today's check-in" : weekly ? "This week's questions" : "Almost done"}</h1>
-        <p className="text-sm text-muted">
-          {today} · step {step} of 2
-        </p>
-        <div aria-hidden="true" className="mt-2 h-1.5 rounded bg-[#eaeef2]">
-          <div className="h-1.5 rounded bg-brand transition-all" style={{ width: step === 1 ? "50%" : "100%" }} />
+    <>
+      <div className="border-b border-line bg-surface">
+        <div className="mx-auto flex max-w-xl flex-col gap-3 px-4 py-5">
+          <div className="flex items-center justify-between text-[13px] text-muted">
+            <span>{today}</span>
+            <span>
+              Step {step} of 2
+            </span>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {step === 1 ? "Daily check-in" : weekly ? "Weekly questions" : "Anything else?"}
+          </h1>
+          <div aria-hidden="true" className="grid grid-cols-2 gap-1">
+            <span className="h-1 bg-brand" />
+            <span className={"h-1 " + (step === 2 ? "bg-brand" : "bg-[#dfe5ea]")} />
+          </div>
+          <p className="flex items-center gap-1.5 text-[13px] text-muted">
+            <Icon name="lock" size={14} />
+            Anonymous · shared with Product Design and Launch squad as a team summary only
+          </p>
         </div>
       </div>
 
-      {step === 1 && (
-        <>
-          <div className="flex flex-wrap items-center gap-1.5 text-sm">
-            <span className="text-muted">Goes to:</span>
-            <span className="rounded-full border border-line px-2.5 py-1">Product Design</span>
-            <span className="rounded-full border border-line px-2.5 py-1">Launch squad</span>
-          </div>
-          <TextQuestion n={1} label="What went well today?" placeholder="A win, big or small" value={checkIn.wentWell} onChange={(v) => set({ wentWell: v })} />
-          <TextQuestion n={2} label="What could've gone better?" placeholder="Anything that got in the way" value={checkIn.couldBeBetter} onChange={(v) => set({ couldBeBetter: v })} />
-          <TextQuestion n={3} label="Are there any issues that need to be addressed?" placeholder="Optional" value={checkIn.issues} onChange={(v) => set({ issues: v })} />
-          <p className="rounded-lg bg-subtle p-3 text-sm leading-relaxed text-muted">
-            Your answers are summarized by AI and then deleted. Your manager sees only a team summary, never your words or
-            your name.
+      <main className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-5">
+        {step === 1 && (
+          <>
+            <Panel bodyClassName="flex flex-col divide-y divide-line">
+              <TextQuestion n={1} label="What went well today?" placeholder="A win, big or small" value={checkIn.wentWell} onChange={(v) => set({ wentWell: v })} />
+              <TextQuestion n={2} label="What could've gone better?" placeholder="Anything that got in the way" value={checkIn.couldBeBetter} onChange={(v) => set({ couldBeBetter: v })} />
+              <TextQuestion
+                n={3}
+                label="Are there any issues that need to be addressed?"
+                placeholder="Optional"
+                value={checkIn.issues}
+                onChange={(v) => set({ issues: v })}
+              />
+            </Panel>
+            <button type="button" className={`${btn.primary} min-h-12 text-base`} onClick={() => setStep(2)}>
+              Continue
+            </button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            {weekly && (
+              <>
+                <Panel title="4. How much do you feel you've improved since last week?" bodyClassName="flex flex-col gap-3 p-5">
+                  <Scale label="Improvement" value={checkIn.improvement} onChange={(n) => set({ improvement: n })} />
+                  <div className="flex justify-between text-xs text-muted">
+                    <span>Not at all</span>
+                    <span>A lot</span>
+                  </div>
+                  <label className="flex flex-col gap-1.5 text-[13px] font-medium">
+                    Details (optional)
+                    <textarea
+                      rows={2}
+                      value={checkIn.improvementNote}
+                      onChange={(e) => set({ improvementNote: e.target.value })}
+                      className={inputCls + " py-2 text-base font-normal"}
+                    />
+                  </label>
+                </Panel>
+
+                <Panel title="5. How is each team doing on its goals and values?" subtitle="1 = not yet, 5 = consistently" bodyClassName="">
+                  <TeamRatings name="Product Design" goals={activeGoals} ratings={checkIn.ratings} onRate={rate} />
+                  <TeamRatings name="Launch squad" goals={otherTeamGoals} ratings={checkIn.ratings} onRate={rate} />
+                </Panel>
+              </>
+            )}
+
+            <Panel bodyClassName="">
+              <TextQuestion
+                n={weekly ? 6 : 4}
+                label="Anything else you want to say?"
+                hint="Vent if you need to. This stays anonymous."
+                value={checkIn.anythingElse}
+                onChange={(v) => set({ anythingElse: v })}
+              />
+            </Panel>
+
+            <div className="flex flex-col gap-2">
+              {error && (
+                <p role="alert" className="rounded-md border border-[#f3c1bd] bg-[#fdf0ef] p-3 text-sm text-[#b42318]">
+                  {error} Your answers are still here.
+                </p>
+              )}
+              <button type="button" className={`${btn.outline} min-h-12 text-base`} disabled={!!busy} onClick={review}>
+                <Icon name="eye" size={18} />
+                {busy === "review" ? "Summarizing…" : "Review summary"}
+              </button>
+              <button type="button" className={`${btn.primary} min-h-12 text-base`} disabled={!!busy} onClick={submit}>
+                {busy === "submit" ? "Submitting…" : "Submit check-in"}
+              </button>
+              <button type="button" className={btn.ghost + " self-center text-muted"} onClick={() => setStep(1)}>
+                Back
+              </button>
+            </div>
+          </>
+        )}
+
+        <Modal open={reviewing} onClose={() => setReviewing(false)} title="Your summary">
+          <p className="border-l-[3px] border-brand bg-brand-wash px-4 py-3 leading-relaxed">{analysis?.result.memberSummary}</p>
+          <p className="flex gap-2 text-[13px] leading-relaxed text-muted">
+            <Icon name="lock" size={16} className="mt-0.5" />
+            Only you see this. Your manager sees a combined summary once 3 or more people have checked in, never your
+            words.
           </p>
-          <button type="button" className={`${btn.primary} min-h-12 text-base`} onClick={() => setStep(2)}>
-            Next
-          </button>
-          <label className="flex items-center gap-2 text-sm text-muted">
-            <input
-              type="checkbox"
-              checked={weekly}
-              onChange={(e) => update((s) => ({ ...s, weekly: e.target.checked }))}
-              className="h-4 w-4 accent-brand"
-            />
-            Prototype: treat this as the first check-in of the week
-          </label>
-        </>
-      )}
-
-      {step === 2 && (
-        <>
-          <button type="button" className="self-start text-sm text-brand" onClick={() => setStep(1)}>
-            ← Back
-          </button>
-
-          {weekly && (
-            <>
-              <fieldset className="flex flex-col gap-2.5">
-                <legend className="mb-2.5 text-base font-semibold">4. How do you feel you&apos;ve improved since last week?</legend>
-                <Scale label="Improvement" value={checkIn.improvement} onChange={(n) => set({ improvement: n })} />
-                <div className="flex justify-between text-xs text-muted">
-                  <span>Not at all</span>
-                  <span>A lot</span>
-                </div>
-                <label className="flex flex-col gap-1.5 text-sm">
-                  <span className="text-muted">Tell us more (optional)</span>
-                  <textarea
-                    rows={2}
-                    value={checkIn.improvementNote}
-                    onChange={(e) => set({ improvementNote: e.target.value })}
-                    className="rounded-lg border border-line p-3 text-base"
-                  />
-                </label>
-              </fieldset>
-
-              <div className="flex flex-col gap-3">
-                <div className="text-base font-semibold">5. How is each team doing on its goals and values?</div>
-                <div className="text-sm text-muted">1 = not yet, 5 = nailing it</div>
-                <TeamRatings name="Product Design" goals={activeGoals} ratings={checkIn.ratings} onRate={rate} />
-                <TeamRatings name="Launch squad" goals={otherTeamGoals} ratings={checkIn.ratings} onRate={rate} />
-              </div>
-            </>
-          )}
-
-          <TextQuestion
-            n={weekly ? 6 : 4}
-            label="Anything else you want to say? (feel free to rant)"
-            value={checkIn.anythingElse}
-            onChange={(v) => set({ anythingElse: v })}
-          />
-
-          {error && (
-            <p role="alert" className="rounded-lg border border-[#f3c1bd] bg-[#fdf0ef] p-3 text-sm text-[#b42318]">
-              {error} Your answers are still here.
-            </p>
-          )}
-          <button type="button" className={`${btn.outline} min-h-12 text-base`} disabled={!!busy} onClick={review}>
-            {busy === "review" ? "Summarizing…" : "Review summary"}
-          </button>
-          <button type="button" className={`${btn.primary} min-h-12 text-base`} disabled={!!busy} onClick={submit}>
-            {busy === "submit" ? "Submitting…" : "Submit check-in"}
-          </button>
-        </>
-      )}
-
-      <Modal open={reviewing} onClose={() => setReviewing(false)} title="Here's what we heard from you">
-        <p className="leading-relaxed">{analysis?.result.memberSummary}</p>
-        <p className="text-sm leading-relaxed text-muted">
-          Only you can see this. Your manager gets a team summary built from 3 or more check-ins, never this one on its
-          own.
-        </p>
-        <div className="flex gap-2">
-          <button type="button" className={`${btn.secondary} min-h-12 flex-1`} onClick={() => setReviewing(false)}>
-            Edit answers
-          </button>
-          <button type="button" className={`${btn.primary} min-h-12 flex-1`} disabled={!!busy} onClick={submit}>
-            {busy === "submit" ? "Submitting…" : "Looks right, submit"}
-          </button>
-        </div>
-      </Modal>
-    </main>
+          <div className="flex gap-2">
+            <button type="button" className={`${btn.secondary} min-h-11 flex-1`} onClick={() => setReviewing(false)}>
+              Edit answers
+            </button>
+            <button type="button" className={`${btn.primary} min-h-11 flex-1`} disabled={!!busy} onClick={submit}>
+              {busy === "submit" ? "Submitting…" : "Submit check-in"}
+            </button>
+          </div>
+        </Modal>
+      </main>
+    </>
   );
 }
 
 function TextQuestion({
   n,
   label,
+  hint,
   placeholder,
   value,
   onChange,
 }: {
   n: number;
   label: string;
+  hint?: string;
   placeholder?: string;
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
-    <label className="flex flex-col gap-2">
-      <span className="text-base font-semibold">
+    <label className="flex flex-col gap-2 p-5">
+      <span className="text-[15px] font-semibold">
         {n}. {label}
       </span>
+      {hint && <span className="-mt-1 text-[13px] text-muted">{hint}</span>}
       <textarea
         rows={3}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-xl border border-line p-3 text-base"
+        className={inputCls + " py-2.5 text-base"}
       />
     </label>
   );
 }
 
 function Scale({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
+  const rated = value > 0;
+  const shown = rated ? value : 3;
+  const pct = ((shown - 1) / 4) * 100;
+  const commit = (v: string) => onChange(Number(v));
   return (
-    <div role="radiogroup" aria-label={label} className="flex gap-2">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          role="radio"
-          aria-checked={value === n}
-          aria-label={`${label}: ${n} of 5`}
-          onClick={() => onChange(n)}
-          className={
-            "h-12 flex-1 rounded-xl text-base " +
-            (value === n ? "bg-brand font-semibold text-white" : "border border-line bg-white text-ink hover:border-brand")
-          }
-        >
-          {n}
-        </button>
-      ))}
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-4">
+        <input
+          type="range"
+          min={1}
+          max={5}
+          step={1}
+          value={shown}
+          aria-label={label}
+          aria-valuetext={rated ? `${value} of 5` : "Not rated yet"}
+          onChange={(e) => commit(e.target.value)}
+          onClick={(e) => commit(e.currentTarget.value)}
+          onKeyUp={(e) => commit(e.currentTarget.value)}
+          style={{ "--pct": `${pct}%` } as React.CSSProperties}
+          className={"range flex-1 " + (rated ? "" : "range-unset")}
+        />
+        <span className={"w-16 flex-none text-right text-sm " + (rated ? "font-semibold text-ink" : "text-muted")}>
+          {rated ? `${value} / 5` : "Not rated"}
+        </span>
+      </div>
+      <div aria-hidden="true" className="relative mr-20 h-4 text-xs text-muted">
+        {[1, 2, 3, 4, 5].map((n, i) => (
+          <span
+            key={n}
+            className={"absolute -translate-x-1/2 " + (rated && n === value ? "font-semibold text-brand-ink" : "")}
+            style={{ left: `calc(11px + (100% - 22px) * ${i / 4})` }}
+          >
+            {n}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -290,16 +314,18 @@ function TeamRatings({
   onRate: (id: string, n: number) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3.5 rounded-xl border border-line p-3.5">
-      <div className="text-sm font-bold">{name}</div>
-      {goals.map((g) => (
-        <div key={g.id} className="flex flex-col gap-2">
-          <div className="text-sm">
-            {g.title} <span className="text-xs text-muted">· {g.kind}</span>
+    <div className="border-b border-line last:border-b-0">
+      <div className="bg-subtle px-5 py-2 text-xs font-semibold uppercase tracking-wide text-muted">{name}</div>
+      <div className="flex flex-col gap-4 px-5 py-4">
+        {goals.map((g) => (
+          <div key={g.id} className="flex flex-col gap-2">
+            <div className="text-sm font-medium">
+              {g.title} <span className="font-normal text-muted">· {g.kind === "goal" ? "Goal" : "Value"}</span>
+            </div>
+            <Scale label={g.title} value={ratings[g.id] ?? 0} onChange={(n) => onRate(g.id, n)} />
           </div>
-          <Scale label={g.title} value={ratings[g.id] ?? 0} onChange={(n) => onRate(g.id, n)} />
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
