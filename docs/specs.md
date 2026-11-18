@@ -12,7 +12,8 @@
 | "Need to talk with a manager?" | Opens an email by default; the manager can change it to a phone number, Slack, or another channel. |
 | Harassment / self-harm handling | Out of scope for Prototype 1; moved to Future Features. |
 | Platform | **One responsive web app** built with **Next.js**, used in desktop and mobile browsers. No separate mobile app, so React Native isn't needed. (18 Nov) |
-| Database | **Supabase** (free tier). (18 Nov) |
+| Database | **None for Prototype 1.** Data stays in each browser (localStorage). Supabase is used only to host the AI Edge Function. (18 Nov) |
+| AI hosting | One **Supabase Edge Function** holds the Claude API key and checks a shared **app passcode**; the site stays on GitHub Pages. (18 Nov) |
 | Testers | The team and their peers. |
 | Training format (Prototype 1) | One format: an AI-generated **PowerPoint (.pptx) for a team discussion**. (18 Nov) |
 | Videos | Links to existing YouTube videos. (18 Nov) |
@@ -182,18 +183,18 @@ Bedrock and Vertex set their own Claude prices; check their pricing pages. Recom
 
 ## 9. Proposed tech stack
 
-Decided (18 Nov): one web app that works in desktop and mobile browsers, built with Next.js and Supabase. React Native is for installable phone apps, so it's left out; the same React skills apply in Next.js.
+Decided (18 Nov): one web app that works in desktop and mobile browsers, built with Next.js (static export on GitHub Pages) plus one Supabase Edge Function for AI calls. No database for Prototype 1. React Native is for installable phone apps, so it's left out; the same React skills apply in Next.js.
 
 Layouts are responsive: a sidebar on desktop and a bottom tab bar on phones. The daily survey and member screens are designed mobile-first, since members will mostly use phones. Slide editing is designed for desktop but still usable on a phone. The app can be made installable to the home screen (a PWA) at little extra cost.
 
 | Layer | Proposal | Why |
 |---|---|---|
 | App | **Next.js (App Router), TypeScript**, Tailwind + shadcn/ui | One responsive app for desktop and mobile browsers |
-| Database + auth | **Supabase free tier** (Postgres, auth, row-level security) | Row-level security enforces the anonymity rules in §7.2 |
-| Server logic + AI calls | **Next.js API routes / server actions** using the Anthropic TypeScript SDK | The API key stays on the server and never reaches the browser |
+| Data | **Browser localStorage** (Prototype 1). Later: Supabase Postgres + auth with row-level security | No database to run for the prototype; row-level security will enforce §7.2 later |
+| AI calls | **One Supabase Edge Function** (`supabase/functions/ai`) using the Anthropic TypeScript SDK, gated by a shared app passcode | GitHub Pages is static, so the API key lives in a Supabase secret and never reaches the browser |
 | Slide editor | Slide list plus an editable panel over the deck JSON | Each slide is a structured card, which makes AI edits to single slides simple |
-| PowerPoint export | **PptxGenJS** in a Next.js API route, turning the deck JSON into a .pptx | Free, open-source library |
-| Hosting | **Vercel** (free tier) | Built for Next.js; free at prototype scale |
+| PowerPoint export | **PptxGenJS** in the browser, turning the deck JSON into a .pptx | Free, open-source library |
+| Hosting | **GitHub Pages** (static export) | Free; already deploys on every push to `main` |
 | Email | Supabase Auth emails for login; `mailto:` links for "Need to talk with a manager?" | No email service needed for Prototype 1 |
 
 ### 9.1 Data model (first pass)

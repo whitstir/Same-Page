@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { emptyCheckIn, useStore, type CheckIn } from "@/lib/store";
-import { summarizeCheckIn } from "@/lib/data";
-import { btn, ButtonLink, Modal, PrototypeNote } from "@/components/ui";
+import { team } from "@/lib/data";
+import { aiErrorMessage, AiCancelled, useAI, type CheckInAnalysis } from "@/lib/ai";
+import { btn, ButtonLink, Modal } from "@/components/ui";
 
 const otherTeamGoals = [{ id: "ls1", title: "Hit the Feb 1 date", kind: "goal" as const }];
 
@@ -13,20 +14,73 @@ export default function CheckInPage() {
   const router = useRouter();
   const { checkIn, weekly, goals, submittedToday, update } = store;
   const [step, setStep] = useState(1);
+  const ai = useAI();
   const [reviewing, setReviewing] = useState(false);
+  const [busy, setBusy] = useState<"review" | "submit" | null>(null);
+  const [error, setError] = useState("");
+  // The analysis and the exact answers it was made from, so an unchanged
+  // check-in isn't sent to the AI twice.
+  const [analysis, setAnalysis] = useState<{ key: string; result: CheckInAnalysis } | null>(null);
 
   const set = (patch: Partial<CheckIn>) => update((s) => ({ ...s, checkIn: { ...s.checkIn, ...patch } }));
   const rate = (id: string, n: number) => set({ ratings: { ...checkIn.ratings, [id]: n } });
 
-  const submit = () => {
-    // Raw answers go to the AI and are then thrown away; only the summary and
-    // numeric ratings would be saved. The prototype simply clears them.
+  const answersKey = JSON.stringify([
+    checkIn.wentWell, checkIn.couldBeBetter, checkIn.issues, checkIn.improvementNote, checkIn.anythingElse,
+    weekly ? checkIn.improvement : 0,
+  ]);
+
+  const analyze = async (): Promise<CheckInAnalysis | null> => {
+    if (analysis?.key === answersKey) return analysis.result;
+    try {
+      const result = await ai.run("analyze", {
+        answers: {
+          wentWell: checkIn.wentWell,
+          couldBeBetter: checkIn.couldBeBetter,
+          issues: checkIn.issues,
+          improvementNote: weekly ? checkIn.improvementNote : "",
+          anythingElse: checkIn.anythingElse,
+        },
+        improvement: weekly ? checkIn.improvement : 0,
+        goals: goals.filter((g) => !g.archived).map((g) => `${g.title} (${g.kind})`),
+        names: [team.manager, ...store.members.map((m) => m.name)],
+      });
+      setAnalysis({ key: answersKey, result });
+      return result;
+    } catch (e) {
+      setError(e instanceof AiCancelled ? "Your check-in needs the app passcode to be summarized." : aiErrorMessage(e));
+      return null;
+    }
+  };
+
+  const review = async () => {
+    setError("");
+    setBusy("review");
+    const result = await analyze();
+    setBusy(null);
+    if (result) setReviewing(true);
+  };
+
+  const submit = async () => {
+    setError("");
+    setBusy("submit");
+    // The answers go to the AI once; only its summary is kept. If the AI
+    // can't be reached, the answers stay here so nothing is lost or saved
+    // anywhere else.
+    const result = await analyze();
+    setBusy(null);
+    if (!result) {
+      setReviewing(false);
+      return;
+    }
     update((s) => ({
       ...s,
       checkIn: emptyCheckIn,
+      myCheckIns: [{ date: new Date().toISOString().slice(0, 10), analysis: result }, ...s.myCheckIns].slice(0, 30),
       submittedToday: true,
       checkInsToday: Math.min(s.members.length, s.checkInsToday + 1),
     }));
+    setAnalysis(null);
     setReviewing(false);
     router.push("/checkin/done/");
   };
@@ -139,28 +193,32 @@ export default function CheckInPage() {
             onChange={(v) => set({ anythingElse: v })}
           />
 
-          <button type="button" className={`${btn.outline} min-h-12 text-base`} onClick={() => setReviewing(true)}>
-            Review summary
+          {error && (
+            <p role="alert" className="rounded-lg border border-[#f3c1bd] bg-[#fdf0ef] p-3 text-sm text-[#b42318]">
+              {error} Your answers are still here.
+            </p>
+          )}
+          <button type="button" className={`${btn.outline} min-h-12 text-base`} disabled={!!busy} onClick={review}>
+            {busy === "review" ? "Summarizing…" : "Review summary"}
           </button>
-          <button type="button" className={`${btn.primary} min-h-12 text-base`} onClick={submit}>
-            Submit check-in
+          <button type="button" className={`${btn.primary} min-h-12 text-base`} disabled={!!busy} onClick={submit}>
+            {busy === "submit" ? "Submitting…" : "Submit check-in"}
           </button>
         </>
       )}
 
       <Modal open={reviewing} onClose={() => setReviewing(false)} title="Here's what we heard from you">
-        <p className="leading-relaxed">{summarizeCheckIn(checkIn)}</p>
+        <p className="leading-relaxed">{analysis?.result.memberSummary}</p>
         <p className="text-sm leading-relaxed text-muted">
           Only you can see this. Your manager gets a team summary built from 3 or more check-ins, never this one on its
           own.
         </p>
-        <PrototypeNote>In the real app, AI writes this summary. The prototype builds it from your answers.</PrototypeNote>
         <div className="flex gap-2">
           <button type="button" className={`${btn.secondary} min-h-12 flex-1`} onClick={() => setReviewing(false)}>
             Edit answers
           </button>
-          <button type="button" className={`${btn.primary} min-h-12 flex-1`} onClick={submit}>
-            Looks right, submit
+          <button type="button" className={`${btn.primary} min-h-12 flex-1`} disabled={!!busy} onClick={submit}>
+            {busy === "submit" ? "Submitting…" : "Looks right, submit"}
           </button>
         </div>
       </Modal>

@@ -1,6 +1,7 @@
-// Sample data and stand-ins for the AI steps. In the real app these come
-// from Claude via Supabase Edge Functions; here they are fixed or templated
-// so the prototype works as a static site.
+// Sample data for the prototype. There is no database, so the team, its
+// goals, the team summary and past trainings are fixed sample data. The AI
+// steps call Claude through src/lib/ai.tsx; the templates below are only
+// used as a fallback when the AI can't be reached.
 
 export type Goal = {
   id: string;
@@ -21,6 +22,7 @@ export type Slide = {
   bullets: string[];
   prompt?: string;
   videoTitle?: string;
+  videoUrl?: string;
   notes: string;
   minutes: number;
 };
@@ -170,23 +172,6 @@ export const initialTrainings: Training[] = [
   { id: "t2", topic: "Running better design reviews", minutes: 10, status: "completed", discussionDate: "2026-11-12", sharedWithTeam: false, slides: sampleDeck("Running better design reviews") },
   { id: "t3", topic: "Planning the launch week", minutes: 15, status: "published", discussionDate: "2026-11-26", sharedWithTeam: false, slides: sampleDeck("Planning the launch week") },
 ];
-
-// Stand-in for the per-response AI summary shown only to the member.
-export function summarizeCheckIn(c: {
-  wentWell: string;
-  couldBeBetter: string;
-  issues: string;
-  anythingElse: string;
-}) {
-  const clean = (s: string) => s.trim().replace(/\s+/g, " ").replace(/[.!?]+$/, "");
-  const lower = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s);
-  const parts: string[] = [];
-  if (clean(c.wentWell)) parts.push(`Things went well today: ${lower(clean(c.wentWell))}.`);
-  if (clean(c.couldBeBetter)) parts.push(`You felt this could have gone better: ${lower(clean(c.couldBeBetter))}.`);
-  if (clean(c.issues)) parts.push(`You raised an issue to address: ${lower(clean(c.issues))}.`);
-  if (clean(c.anythingElse)) parts.push(`You also mentioned: ${lower(clean(c.anythingElse))}.`);
-  return parts.length ? parts.join(" ") : "You didn't write anything today, so there's nothing to summarize yet.";
-}
 
 export function formatDate(iso?: string) {
   if (!iso) return "Not set";

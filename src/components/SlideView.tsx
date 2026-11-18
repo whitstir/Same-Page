@@ -14,7 +14,18 @@ export function SlideView({ slide }: { slide: Slide }) {
           <strong>Discuss:</strong> {slide.prompt}
         </div>
       )}
-      {slide.videoTitle && <div className="text-sm text-muted">▶ Video: {slide.videoTitle}</div>}
+      {slide.videoTitle && (
+        <div className="text-sm text-muted">
+          ▶ Video:{" "}
+          {slide.videoUrl ? (
+            <a href={slide.videoUrl} target="_blank" rel="noreferrer">
+              {slide.videoTitle}
+            </a>
+          ) : (
+            slide.videoTitle
+          )}
+        </div>
+      )}
     </div>
   );
 }

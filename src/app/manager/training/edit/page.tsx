@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/lib/store";
 import type { Slide } from "@/lib/data";
 import { downloadPptx } from "@/lib/pptx";
-import { btn, MinutesInput, Pill, PrototypeNote } from "@/components/ui";
+import { aiErrorMessage, toSlide, useAI } from "@/lib/ai";
+import { btn, MinutesInput, Pill } from "@/components/ui";
 import { SlideView } from "@/components/SlideView";
 
 export default function EditorPage() {
@@ -18,30 +19,14 @@ export default function EditorPage() {
 }
 
 type Proposal = { slide: number; before: Slide; after: Slide; summary: string };
-type ChatItem = { from: "you" | "ai"; text: string; proposal?: Proposal; resolved?: "accepted" | "rejected" };
-
-function proposeChange(req: string, index: number, s: Slide): Proposal {
-  const r = req.toLowerCase();
-  let after: Slide;
-  let summary: string;
-  if (/short|trim|cut/.test(r)) {
-    after = { ...s, bullets: s.bullets.slice(0, Math.max(1, s.bullets.length - 1)), minutes: Math.max(1, s.minutes - 1) };
-    summary = "Remove the last bullet and save a minute";
-  } else if (/remote/.test(r)) {
-    after = {
-      ...s,
-      bullets: s.bullets.map((b) =>
-        b.replace(/the day before a deadline/i, "on a video call, with cameras off").replace(/room/i, "call"),
-      ),
-      notes: s.notes + " Ask how this feels different on a call than in person.",
-    };
-    summary = "Set the scenario on a video call";
-  } else {
-    after = { ...s, bullets: [...s.bullets, req.replace(/^(add|make|please)\s+/i, "").replace(/^\w/, (c) => c.toUpperCase())] };
-    summary = "Add a bullet for your request";
-  }
-  return { slide: index, before: s, after, summary };
-}
+type ChatItem = {
+  from: "you" | "ai";
+  text: string;
+  proposal?: Proposal;
+  resolved?: "accepted" | "rejected";
+  pending?: boolean;
+  error?: boolean;
+};
 
 function Editor() {
   const id = useSearchParams().get("id");
@@ -51,6 +36,8 @@ function Editor() {
   const [sel, setSel] = useState(0);
   const [chat, setChat] = useState<ChatItem[]>([]);
   const [msg, setMsg] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const ai = useAI();
 
   if (!t) {
     return (
@@ -66,12 +53,40 @@ function Editor() {
   const total = t.slides.reduce((a, s) => a + s.minutes, 0);
   const setSlides = (slides: Slide[]) => updateTraining(t.id, (x) => ({ ...x, slides }));
 
+  // Ask the AI to change the selected slide. The result is a proposal the
+  // manager accepts or rejects, like a tracked change.
+  const ask = async (request: string, shown: string) => {
+    if (!slide || thinking) return;
+    const index = i;
+    const before = slide;
+    setThinking(true);
+    setChat((c) => [...c, { from: "you", text: shown }, { from: "ai", text: `Working on slide ${index + 1}…`, pending: true }]);
+    let reply: ChatItem;
+    try {
+      const out = await ai.run("revise", {
+        topic: t.topic,
+        outline: t.slides.map((s) => s.title),
+        index,
+        slide: before,
+        request,
+      });
+      const after = toSlide(out.slide);
+      reply = {
+        from: "ai",
+        text: `Proposed change to slide ${index + 1}: ${out.summary.replace(/\.$/, "")}.`,
+        proposal: { slide: index, before, after, summary: out.summary },
+      };
+    } catch (e) {
+      reply = { from: "ai", text: aiErrorMessage(e), error: true };
+    }
+    setChat((c) => [...c.slice(0, -1), reply]);
+    setThinking(false);
+  };
   const send = () => {
     const text = msg.trim();
-    if (!text || !slide) return;
-    const p = proposeChange(text, i, slide);
-    setChat([...chat, { from: "you", text }, { from: "ai", text: `Proposed change to slide ${i + 1}: ${p.summary}.`, proposal: p }]);
+    if (!text) return;
     setMsg("");
+    ask(text, text);
   };
   const resolve = (k: number, accept: boolean) => {
     const item = chat[k];
@@ -172,7 +187,13 @@ function Editor() {
                 <button
                   type="button"
                   className={btn.secondary}
-                  onClick={() => updateSlide(t.id, i, { bullets: [...slide.bullets].reverse(), title: slide.title.replace(/ \(v\d+\)$/, "") + " (v2)" })}
+                  disabled={thinking}
+                  onClick={() =>
+                    ask(
+                      "Rewrite this slide from scratch with fresh wording and a different angle. Keep its kind, purpose and timing.",
+                      `Regenerate slide ${i + 1}`,
+                    )
+                  }
                 >
                   Regenerate this slide
                 </button>
@@ -212,7 +233,8 @@ function Editor() {
                 />
               </label>
               <Field label="Discussion prompt" value={slide.prompt ?? ""} onChange={(v) => updateSlide(t.id, i, { prompt: v || undefined })} />
-              <Field label="YouTube video" value={slide.videoTitle ?? ""} onChange={(v) => updateSlide(t.id, i, { videoTitle: v || undefined })} />
+              <Field label="Video title" value={slide.videoTitle ?? ""} onChange={(v) => updateSlide(t.id, i, { videoTitle: v || undefined })} />
+              <Field label="Video link (YouTube)" type="url" value={slide.videoUrl ?? ""} onChange={(v) => updateSlide(t.id, i, { videoUrl: v || undefined })} />
               <label className="flex flex-col gap-1.5 text-sm font-semibold sm:col-span-2">
                 Speaker notes
                 <textarea
@@ -228,17 +250,25 @@ function Editor() {
 
         <aside aria-label="Side chat" className="flex max-w-full flex-[1_1_300px] flex-col gap-3 border-line bg-subtle p-4 md:border-l">
           <div className="font-semibold">Revise with AI</div>
-          <PrototypeNote>Stand-in for the AI. Try &quot;make the scenario about remote work&quot; or &quot;shorten this&quot;.</PrototypeNote>
+          <p className="text-sm text-muted">
+            Ask for a change to the selected slide, like &quot;make the scenario about remote work&quot; or &quot;shorten
+            this&quot;. You&apos;ll see the change before it&apos;s applied.
+          </p>
           {chat.map((c, k) =>
             c.from === "you" ? (
               <div key={k} className="max-w-[85%] self-end rounded-xl bg-brand-soft px-3 py-2.5 text-sm">
                 {c.text}
               </div>
             ) : (
-              <div key={k} className="flex flex-col gap-2 rounded-xl border border-line bg-white p-3 text-sm">
-                <div className="text-muted">{c.text}</div>
+              <div key={k} className="flex flex-col gap-2 rounded-xl border border-line bg-white p-3 text-sm" aria-live="polite">
+                <div className={c.error ? "text-[#b42318]" : "text-muted"}>{c.text}</div>
                 {c.proposal && (
                   <>
+                    {c.proposal.after.title !== c.proposal.before.title && (
+                      <div>
+                        <span className="text-muted">Title:</span> {c.proposal.after.title}
+                      </div>
+                    )}
                     {c.proposal.before.bullets
                       .filter((b) => !c.proposal!.after.bullets.includes(b))
                       .map((b) => (
@@ -253,6 +283,14 @@ function Editor() {
                           {b}
                         </div>
                       ))}
+                    {(c.proposal.after.prompt ?? "") !== (c.proposal.before.prompt ?? "") && (
+                      <div>
+                        <span className="text-muted">Discuss:</span> {c.proposal.after.prompt || "(removed)"}
+                      </div>
+                    )}
+                    {c.proposal.after.notes !== c.proposal.before.notes && (
+                      <div className="text-xs text-muted">Speaker notes updated</div>
+                    )}
                     {c.resolved ? (
                       <div className="text-xs font-semibold text-muted">{c.resolved === "accepted" ? "Accepted" : "Rejected"}</div>
                     ) : (
@@ -287,7 +325,7 @@ function Editor() {
               placeholder={`Change slide ${i + 1}…`}
               className="min-h-11 min-w-0 flex-1 rounded-lg border border-line bg-white px-3 text-sm"
             />
-            <button type="submit" className={btn.primary}>
+            <button type="submit" className={btn.primary} disabled={thinking || !msg.trim()}>
               Send
             </button>
           </form>

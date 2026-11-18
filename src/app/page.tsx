@@ -14,7 +14,7 @@ export default function Home() {
           anonymous daily check-ins.
         </p>
         <p className="rounded-lg border border-dashed border-line-strong bg-subtle px-3 py-2 text-sm text-muted">
-          This is a clickable prototype. It uses sample data saved in your browser, and the AI steps are stand-ins.
+          This is a prototype. It uses sample data saved in your browser. The AI steps are real and need the app passcode from your team.
         </p>
       </div>
 

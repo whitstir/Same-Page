@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "@/lib/store";
 import { TopNav } from "@/components/Nav";
+import { AiProvider } from "@/lib/ai";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 
@@ -18,8 +19,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${inter.variable} antialiased`}>
         <StoreProvider>
-          <TopNav />
-          <div className="pb-24 md:pb-10">{children}</div>
+          <AiProvider>
+            <TopNav />
+            <div className="pb-24 md:pb-10">{children}</div>
+          </AiProvider>
         </StoreProvider>
       </body>
     </html>

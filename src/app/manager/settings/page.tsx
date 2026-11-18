@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
+import { AiCancelled, useAI } from "@/lib/ai";
 import type { ContactChannel, Goal } from "@/lib/data";
 import { btn, Card, Pill } from "@/components/ui";
 
@@ -181,6 +182,53 @@ export default function SettingsPage() {
           />
         </label>
       </Card>
+      <AiPasscodeCard />
     </main>
+  );
+}
+
+function AiPasscodeCard() {
+  const ai = useAI();
+  const [saved, setSaved] = useState(false);
+  useEffect(() => setSaved(ai.hasPasscode()), [ai]);
+
+  return (
+    <Card className="flex flex-col gap-3">
+      <h2 className="text-lg font-bold">AI passcode</h2>
+      <p className="text-sm text-muted">
+        The AI steps need the team&apos;s app passcode. It&apos;s saved only in this browser.
+      </p>
+      <p className="text-sm" role="status">
+        {saved ? "A passcode is saved in this browser." : "No passcode saved yet. You'll be asked the first time AI runs."}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={btn.secondary}
+          onClick={() =>
+            ai
+              .askPasscode()
+              .then(() => setSaved(true))
+              .catch((e) => {
+                if (!(e instanceof AiCancelled)) throw e;
+              })
+          }
+        >
+          {saved ? "Change passcode" : "Enter passcode"}
+        </button>
+        {saved && (
+          <button
+            type="button"
+            className={btn.ghost}
+            onClick={() => {
+              ai.forgetPasscode();
+              setSaved(false);
+            }}
+          >
+            Forget passcode
+          </button>
+        )}
+      </div>
+    </Card>
   );
 }
